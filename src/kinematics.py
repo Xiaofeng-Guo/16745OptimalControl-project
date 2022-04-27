@@ -104,17 +104,17 @@ class Kinematics:
 
 
 
-K = Kinematics()
-q_init = np.array([0.1430575, -1.7539313, 1.8729757, -2.475513, 0.23822385, 0.7320934, 1.6475043])
-q_test = np.array([0.1330575, -1.7539313, 1.8729757, -2.475513, 0.23822385, 0.7320934, 1.6475043])
-A_target = K.fk(q_test)
-
-t = time.time()
-q_final = K.incremental_ik(A_target, q=q_init, atol=1e-6)
-print('time: ', time.time() - t)
-A_final = K.fk(q_final)
-
-print('test q: ', q_test)
-print('find q: ', q_final)
-print('test A: ', K.reshape_A(A_target))
-print('find A: ', K.reshape_A(A_final))
+# K = Kinematics()
+# q_init = np.array([0.1430575, -1.7539313, 1.8729757, -2.475513, 0.23822385, 0.7320934, 1.6475043])
+# q_test = np.array([0.1330575, -1.7539313, 1.8729757, -2.475513, 0.23822385, 0.7320934, 1.6475043])
+# A_target = K.fk(q_test)
+#
+# t = time.time()
+# q_final = K.incremental_ik(A_target, q=q_init, atol=1e-6)
+# print('time: ', time.time() - t)
+# A_final = K.fk(q_final)
+#
+# print('test q: ', q_test)
+# print('find q: ', q_final)
+# print('test A: ', K.reshape_A(A_target))
+# print('find A: ', K.reshape_A(A_final))
