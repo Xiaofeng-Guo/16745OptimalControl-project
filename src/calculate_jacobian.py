@@ -26,7 +26,7 @@ def pid_control (env,target_state, init_action):
     observation, reward, done, info = env.step(action)
     env.render()
     current_state = observation[0:9]
-    error_threthold = 0.02
+    error_threthold = 0.04
     while True:
         state_error = target_state-current_state
         sum_state_error += state_error
@@ -54,6 +54,50 @@ def pid_control (env,target_state, init_action):
             error_threthold += 0.01
     return action
 
+
+def direct_pid_control (env,target_state, init_action):
+
+    action = init_action
+    print(target_state)
+    P = 1
+    D = 0.01
+    I = 0.1
+    old_state_error = 0
+    sum_state_error = 0
+    time_step = 0
+    observation, reward, done, info = env.step(action)
+    env.render()
+    current_state = observation[0:9]
+    error_threthold = 0.03
+    xref = []
+    uref = []
+    while True:
+        state_error = target_state-current_state
+        sum_state_error += state_error
+        delta_state_error = state_error-old_state_error
+        # if np.linalg.norm(delta_state_error)<0.01:
+        #     print("using delta state error\n")
+        #     break
+        old_state_error = state_error
+        action = P*state_error + D*delta_state_error + I*sum_state_error
+        # action[7] = 1
+        # action[8] = 1
+        if target_state[7] <0.01:
+            action[7] = -1
+        if target_state[8]<0.01:
+            action[8]= -1
+        observation, reward, done, info = env.step(action)
+        env.render()
+        current_state = observation[0:9]
+        xref.append(observation[0:18])
+        uref.append(action)
+        time_step += 1
+        if (np.linalg.norm(current_state-target_state)<error_threthold):
+            break
+        if time_step%100 ==0:
+            print(target_state,'\n',current_state,'\n',action,'\n',np.linalg.norm(current_state-target_state),np.linalg.norm(delta_state_error),'\n')
+            error_threthold += 0.01
+    return xref,uref
 
 
 
@@ -100,22 +144,30 @@ if __name__ == "__main__":
     templete_obs[65:75, 7] = 0.002
     templete_obs[65:75, 8] = 0.002
 
-    actions = np.load("data/trial1/uref_rough_0-74.npy")
+    # actions = np.load("data/trial1/uref_rough_0-74.npy")
 
-    time_index = range(0,75)
-    target_joint_angle_trajectory = templete_obs[:,:]
+    # time_index = range(0,75)
+    # target_joint_angle_trajectory = templete_obs[:,:]
+    # init_action = np.zeros(9)
+    # action = init_action
+    # uref = np.zeros([120,9])
+    # for i in range(0,120):
+    #     if i<75:
+    #         action = actions[i,:]
+    #     target_state = target_joint_angle_trajectory[i,:]
+    #     new_action = pid_control(env,target_state, action)
+    #     action = new_action
+    #     uref[i,:] = new_action
+    #
+    #     print(i,"accomplished\n")
+    # np.save("uref.npy",uref)
+
     init_action = np.zeros(9)
-    action = init_action
-    uref = np.zeros([120,9])
-    for i in range(0,120):
-        if i<75:
-            action = actions[i,:]
-        target_state = target_joint_angle_trajectory[i,:]
-        new_action = pid_control(env,target_state, action)
-        action = new_action
-        uref[i,:] = new_action
-
-        print(i,"accomplished\n")
-    np.save("uref.npy",uref)
-
-
+    target_state = templete_obs[5,:]
+    xref,uref = direct_pid_control(env,target_state,init_action)
+    Xref = np.asarray(xref)
+    print(Xref.shape)
+    Uref = np.asarray(uref)
+    print(Uref.shape)
+    np.save("data/trial2/uref.npy",Uref)
+    np.save("data/trial2/xref.npy", Xref)
