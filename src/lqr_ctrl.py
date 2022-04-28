@@ -1,6 +1,19 @@
 import gym
 import d4rl
+import mujoco_py
 import numpy as np
+
+
+def set_state(env, qpos, qvel):
+
+	import ipdb;ipdb.set_trace()
+	state = env.sim.get_state()
+	for i in range(env.n_jnt):
+		state[i] = qpos[i]
+	for i in range(env.model.nq,env.model.nq+env.n_jnt):
+		state[i] = qvel[i-env.model.nq]
+	env.sim.set_state(state)
+	env.sim.forward()
 
 
 def linearize(env, Xref, Uref):
@@ -18,10 +31,11 @@ def linearize(env, Xref, Uref):
 		x = Xref[step]
 		u = Uref[step]
 
-		env.sim.data.qpos[:9] = x[:9]
-		# env.sim.data.qvel[:9] = np.zeros(9)
-		env.sim.data.qvel[:9] = x[9:18]
-		env.sim.forward()
+		set_state(env,x[:9],x[9:18])
+		# env.sim.data.qpos[:9] = x[:9]
+		# # env.sim.data.qvel[:9] = np.zeros(9)
+		# env.sim.data.qvel[:9] = x[9:18]
+		# env.sim.forward()
 		observation, reward, done, info = env.step(u)
 
 		fxu = observation[:18]
@@ -29,9 +43,10 @@ def linearize(env, Xref, Uref):
 		for i in range(18):
 			dx = np.zeros(18)
 			dx[i] += delta
-			env.sim.data.qpos[:9] = x[:9] + dx[:9]
-			env.sim.data.qvel[:9] = x[9:18] + dx[9:]
-			env.sim.forward()
+			# env.sim.data.qpos[:9] = x[:9] + dx[:9]
+			# env.sim.data.qvel[:9] = x[9:18] + dx[9:]
+			# env.sim.forward()
+			set_state(env,x[:9],x[9:18])
 			observation, reward, done, info = env.step(u)
 
 			fdxu = observation[:18]
@@ -40,17 +55,18 @@ def linearize(env, Xref, Uref):
 		for i in range(9):
 			du = np.zeros(9)
 			du[i] += delta
-			env.sim.data.qpos[:9] = x[:9]
-			# env.sim.data.qvel[:9] = np.zeros(9)
-			env.sim.data.qvel[:9] = x[9:18]
-			env.sim.forward()
+			# env.sim.data.qpos[:9] = x[:9]
+			# # env.sim.data.qvel[:9] = np.zeros(9)
+			# env.sim.data.qvel[:9] = x[9:18]
+			# env.sim.forward()
+			set_state(env,x[:9],x[9:18])
 			observation, reward, done, info = env.step(u + du)
 
 			fxdu = observation[:18]
 			B[step][:, i] = (fxdu - fxu) / delta
 		print(step)
-	np.save('data/trial2/A.npy', A)
-	np.save('data/trial2/B.npy', B)
+	np.save('A.npy', A)
+	np.save('B.npy', B)
 
 	return A, B
 
@@ -72,60 +88,53 @@ def tvlqr(A,B,Q,R,Qf):
 
 def forward_sim(env,K,P,Xref,Uref):
 	# return cost
-	observation = env.reset()
-	X = observation[:18]
+	import matplotlib.pyplot as plt
 	cost = 0
 	N = len(K)+1
-	for k in range(0,N-1):
-		U = Uref[k] #- K[k]@(X-Xref[k])
-		# U[k] = clamp.(U[k], -u_bnd, u_bnd)
-		print(U)
-		observation, reward, done, info = env.step(U)
-		env.render()
-		X = observation[:18]
-		# X[k+1]  = true_dynamics_rk4(model, X[k], U[k], dt)
-	
 
-	return cost
-
-
-def forward_ref_sim(env, Xref, Uref):
-	# return cost
+	X = [np.zeros(18) for k in range(0,N)]
+	U = [np.zeros(9) for k in range(0,N-1)]
 	observation = env.reset()
-	X = observation[:18]
-	cost = 0
-	N = len(K) + 1
-	for k in range(0, N - 1):
-		U = Uref[k]
-		observation, reward, done, info = env.step(U)
+	X[0] = observation[:18]
+
+	pid_k = np.concatenate((np.identity(9)*1,np.identity(9)*0.01),axis=1)
+	import ipdb;ipdb.set_trace()
+	for k in range(0,N-1):
+		U[k] = Uref[k] - K[k]@(X[k]-Xref[k])
+		# U[k] = clamp.(U[k], -u_bnd, u_bnd)
+		observation, reward, done, info = env.step(U[k])
 		env.render()
-		X = observation[:18]
-	# X[k+1]  = true_dynamics_rk4(model, X[k], U[k], dt)
+		X[k+1] = observation[:18]
+		# X[k+1]  = true_dynamics_rk4(model, X[k], U[k], dt)
+	import ipdb;ipdb.set_trace()
+	X = np.asarray(X)
+	Xref = np.asarray(Xref)
+
+	plt.plot(X[:,0])
+	plt.plot(Xref[:,0])
+	plt.show()
 
 	return cost
-
 
 if __name__ == '__main__':
 	env = gym.make('kitchen-complete-v0')
 	env.reset()
-	A = np.load('data/trial2/A.npy')
-	B = np.load('data/trial2/B.npy')
-	U_ref = np.load('data/trial2/uref.npy')
-	X_ref = np.load('data/trial2/xref.npy')
+	A = np.load('A.npy')
+	B = np.load('B.npy')
+	U_ref = np.load('uref.npy')
+	X_ref = np.load('xref.npy')
 
-	q = [0.1]*9+[0]*9
+	q = [1]*18
 	Q = np.diag(q)
 	R = np.identity(9)*0.1
 
-	# A,B = linearize(env,X_ref,U_ref)
+	A,B = linearize(env,X_ref,U_ref)
 	K,P = tvlqr(A,B,Q,R,Q)
-	# import ipdb;ipdb.set_trace()
+	import ipdb;ipdb.set_trace()
 
 	forward_sim(env,K,P,X_ref,U_ref)
-	# forward_ref_sim(env,X_ref, U_ref)
 
-	input('\n')
-# while True:
+	# while True:
 	# 	env.render()
 	# 	env.sim.data.qpos[:self.n_jnt] = reset_pose[:self.n_jnt].copy()
 	# 	env.sim.data.qvel[:self.n_jnt] = reset_vel[:self.n_jnt].copy()
