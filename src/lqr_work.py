@@ -2,6 +2,7 @@ import gym
 import d4rl
 import mujoco_py
 import numpy as np
+from mujoco_py import functions
 
 
 def set_state(env, qpos, qvel):
@@ -39,7 +40,7 @@ def linearize(env, Xref, Uref):
 			env.sim.data.ctrl[i] = u[i]
 		env.sim.step()
 
-		fxu = np.concatenate((env.sim.data.qpos[:9],env.sim.data.qpos[:9]))
+		fxu = np.concatenate((env.sim.data.qpos[:9],env.sim.data.qvel[:9]))
 
 		for i in range(18):
 			dx = np.zeros(18)
@@ -50,7 +51,7 @@ def linearize(env, Xref, Uref):
 				env.sim.data.ctrl[i] = u[i]
 			env.sim.step()
 
-			fdxu = np.concatenate((env.sim.data.qpos[:9],env.sim.data.qpos[:9]))
+			fdxu = np.concatenate((env.sim.data.qpos[:9],env.sim.data.qvel[:9]))
 			A[step][:, i] = (fdxu - fxu) / delta
 
 		for i in range(9):
@@ -62,7 +63,7 @@ def linearize(env, Xref, Uref):
 				env.sim.data.ctrl[i] = (u+du)[i]
 			env.sim.step()
 
-			fxdu = np.concatenate((env.sim.data.qpos[:9],env.sim.data.qpos[:9]))
+			fxdu = np.concatenate((env.sim.data.qpos[:9],env.sim.data.qvel[:9]))
 			B[step][:, i] = (fxdu - fxu) / delta
 		print(step)
 	np.save('A.npy', A)
@@ -121,17 +122,29 @@ def forward_sim(env,K,P,Xref,Uref):
 	print(cost)
 	return cost
 
+
 if __name__ == '__main__':
 	env = gym.make('kitchen-complete-v0')
 	env.reset()
 	A = np.load('A.npy')
 	B = np.load('B.npy')
-	U_ref = np.load('uref.npy')
-	X_ref = np.load('xref.npy')
+	U_ref = np.load('Uref.npy')[:120]
+	X_ref = np.load('Xref.npy')[:120]
+
+
+	X_ref[20:29, 7:9] = 0.04
+	X_ref[29:45, 7:9] = 0.002
+	X_ref[45:60, 7:9] = 0.04
+	X_ref[65:75, 7:9] = 0.002
+
+	U_ref[29:45, 7:9] = -1
+	U_ref[65:75, 7:9] = -1
+
+	import ipdb;ipdb.set_trace()
 
 	q = [10]*9+[1]*9
 	Q = np.diag(q)
-	R = np.identity(9)*0.01
+	R = np.identity(9)*10
 
 	A,B = linearize(env,X_ref,U_ref)
 	K,P = tvlqr(A,B,Q,R,Q)
