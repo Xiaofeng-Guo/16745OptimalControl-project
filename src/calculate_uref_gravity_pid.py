@@ -1,3 +1,10 @@
+'''
+generate the Uref given observation (Xref)
+Uref is the the gravity compensate control for each time-step calculated by PID
+'''
+
+
+
 import numpy as np
 
 import argparse
@@ -9,14 +16,27 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation as R
 import numpy as np
-import kinematics
-
 import pybullet as p
 import pybullet_data
+
+
+
+
 def pid_control (env,target_state, init_action):
+    '''
+    calculated the uref_k given observation (xref_k),
+    which is the gravity compensate control calculated by PID
+
+    :param env: the environment
+    :param target_state: np.ndarray (9,): the target steady state
+    :param init_action: np.ndarray (9,)
+    :return:
+        action: np.ndarray (9,): the compensate control
+    '''
+
+
 
     action = init_action
-    print(target_state)
     P = 1
     D = 0.01
     I = 0.1
@@ -129,7 +149,6 @@ if __name__ == "__main__":
     rewards = dataset['rewards']
     actions = dataset['actions']
     observations = dataset['observations']
-    kine = kinematics.Kinematics()
     init_state = init_env(env)
     init_joint = init_state[0:7]
 

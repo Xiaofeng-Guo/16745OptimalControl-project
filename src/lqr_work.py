@@ -1,3 +1,9 @@
+"""
+
+
+"""
+
+
 import gym
 import d4rl
 import mujoco_py
@@ -102,6 +108,8 @@ def forward_sim(env,K,P,Xref,Uref):
 
 	for k in range(0,N-1):
 		U[k] = Uref[k] - K[k]@(X[k]-Xref[k])
+		# U[k] = Uref[k] - pid_k @ (X[k] - Xref[k])
+
 		# U[k] = clamp.(U[k], -u_bnd, u_bnd)
 		observation, reward, done, info = env.step(U[k])
 		env.render()
@@ -128,27 +136,25 @@ if __name__ == '__main__':
 	env.reset()
 	A = np.load('A.npy')
 	B = np.load('B.npy')
-	U_ref = np.load('Uref.npy')[:120]
-	X_ref = np.load('Xref.npy')[:120]
-
+	U_ref = np.load('data/trial3/Uref.npy')[:120]
+	X_ref = np.load('data/trial3/obs.npy')[:120]
 
 	X_ref[20:29, 7:9] = 0.04
 	X_ref[29:45, 7:9] = 0.002
 	X_ref[45:60, 7:9] = 0.04
 	X_ref[65:75, 7:9] = 0.002
-
 	U_ref[29:45, 7:9] = -1
 	U_ref[65:75, 7:9] = -1
 
-	import ipdb;ipdb.set_trace()
+	# import ipdb;ipdb.set_trace()
 
 	q = [10]*9+[1]*9
 	Q = np.diag(q)
 	R = np.identity(9)*10
 
-	A,B = linearize(env,X_ref,U_ref)
+	# A,B = linearize(env,X_ref,U_ref)
 	K,P = tvlqr(A,B,Q,R,Q)
-	import ipdb;ipdb.set_trace()
+	# import ipdb;ipdb.set_trace()
 
 	forward_sim(env,K,P,X_ref,U_ref)
 
