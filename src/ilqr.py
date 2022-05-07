@@ -70,7 +70,7 @@ def linearize(env, Xref, Uref):
 
             fxdu = np.concatenate((env.sim.data.qpos[:9], env.sim.data.qvel[:9]))
             B[step][:, i] = (fxdu - fxu) / delta
-        print(step)
+        # print(step)
 
     return A, B
 
@@ -115,7 +115,7 @@ def trajectory_cost(X, U, Xref, Uref, Q,R,Qf):
     return J
 
 
-def backward_pass(X, U, Xref, Uref,A,B,Q,R,Qf):
+def backward_pass(env,X, U, Xref, Uref,A,B,Q,R,Qf):
 
     N = Xref.shape[0]
     nx = 18
@@ -130,6 +130,9 @@ def backward_pass(X, U, Xref, Uref,A,B,Q,R,Qf):
     p[-1] = Qf @ (X[-1] - Xref[-1])
     P[-1] = Qf
     delta_J = 0.0
+
+
+    A,B = linearize(env,np.asarray(X),np.asarray(U))
     for k in reversed(range(0, N - 1)):
         x = X[k]
         u = U[k]
@@ -137,7 +140,7 @@ def backward_pass(X, U, Xref, Uref,A,B,Q,R,Qf):
         uref = Uref[k]
 
         q = Q @ (x - xref)
-        r = R @ (u - uref)
+        r = R @ (u- uref)
 
 
         gx = q + A[k].transpose() @ p[k+1]
@@ -158,7 +161,7 @@ def backward_pass(X, U, Xref, Uref,A,B,Q,R,Qf):
     return d, K, P, delta_J
 
 
-def forward_pass(env, X, U, Xref, Uref, K, d, delta_J, Q,R,Qf, max_linesearch_iters = 100):
+def forward_pass(env, X, U, Xref, Uref, K, d, delta_J, Q,R,Qf, max_linesearch_iters = 10):
 
     Xn = copy.deepcopy(X)
     Un = copy.deepcopy(U)
@@ -168,7 +171,7 @@ def forward_pass(env, X, U, Xref, Uref, K, d, delta_J, Q,R,Qf, max_linesearch_it
 
     alpha = 1
     J = trajectory_cost(X, U, Xref, Uref, Q,R,Qf)
-
+    print("forward pass init cost", J, '\n')
     observation = env.reset()
     X[0] = observation[:18]
 
@@ -176,26 +179,26 @@ def forward_pass(env, X, U, Xref, Uref, K, d, delta_J, Q,R,Qf, max_linesearch_it
         Un[k] = U[k] - alpha * d[k] - K[k] @ (Xn[k] - X[k])
         observation, reward, done, info = env.step(U[k])
         # env.render()
-        X[k + 1] = observation[:18]
+        Xn[k + 1] = observation[:18]
 
 
     Jn = trajectory_cost(Xn, Un, Xref, Uref, Q,R,Qf)
-
+    print("forward pass cost", J, '\n')
     iter = 0
     while ( Jn > (J - 1e-2 * alpha * delta_J) and iter < max_linesearch_iters):
         alpha = 0.5 * alpha
         observation = env.reset()
         X[0] = observation[:18]
-
         for k in range(0,N-1):
             Un[k] = U[k] - alpha * d[k] - K[k] @ (Xn[k] - X[k])
-            observation, reward, done, info = env.step(U[k])
+            observation, reward, done, info = env.step(Un[k])
             # env.render()
-            X[k + 1] = observation[:18]
+            Xn[k + 1] = observation[:18]
 
         Jn = trajectory_cost(Xn, Un, Xref, Uref,Q,R,Qf)
         print(Jn,'\n')
         iter += 1
+
 
     return Xn, Un, Jn, alpha
 
@@ -222,7 +225,7 @@ def iLQR(env, U, Xref, Uref, A,B,Q,R,Qf,atol = 1e-5, max_iters = 10):
     d = [np.ones(nu) for i in range(0,N-1)]
     while (max(np.linalg.norm(d,axis=1)) > atol) and (iter < max_iters):
         iter += 1
-        d, K, P, delta_J = backward_pass(X, U, Xref, Uref,A,B,Q,R,Qf)
+        d, K, P, delta_J = backward_pass(env,X, U, Xref, Uref,A,B,Q,R,Qf)
         X, U, J, alpha = forward_pass(env,X, U, Xref, Uref, K, d, delta_J,Q,R,Qf)
         print(iter,'\t',J,'\t',delta_J,'\t',max(np.linalg.norm(d,axis=1)),'\t',alpha,'\n')
 
@@ -244,7 +247,7 @@ def forward_sim(env, K, P, Xref, Uref,Q,R,Qf):
     pid_k = np.concatenate((np.identity(9) * 1, np.identity(9) * 0.01), axis=1)
 
     for k in range(0, N - 1):
-        U[k] = Uref[k] - K[k] @ (X[k] - Xref[k])
+        U[k] = Uref[k]  - K[k] @ (X[k] - Xref[k])
         # U[k] = Uref[k] - pid_k @ (X[k] - Xref[k])
 
         # U[k] = clamp.(U[k], -u_bnd, u_bnd)
@@ -257,7 +260,7 @@ def forward_sim(env, K, P, Xref, Uref,Q,R,Qf):
 
     X = np.asarray(X)
     Xref = np.asarray(Xref)
-
+    U = np.asarray(U)
     # plt.plot(X[:, 0], label='est')
     # plt.plot(Xref[:, 0], label='GT')
     # plt.legend()
@@ -265,7 +268,7 @@ def forward_sim(env, K, P, Xref, Uref,Q,R,Qf):
 
     print(cost,'\n')
     print(trajectory_cost(X,U,Xref,Uref,Q,R,Qf))
-    return cost
+    return U
 
 
 if __name__ == '__main__':
@@ -273,8 +276,8 @@ if __name__ == '__main__':
     env.reset()
     # A = np.load('A.npy')
     # B = np.load('B.npy')
-    U_ref = np.load('data/trial3/Uref.npy')[:55]
-    X_ref = np.load('data/trial3/obs.npy')[:55]
+    U_ref = np.load('data/trial3/Uref.npy')[:160]
+    X_ref = np.load('data/trial3/obs.npy')[:160]
 
     X_ref[20:29, 7:9] = 0.04
     X_ref[29:45, 7:9] = 0.002
@@ -295,7 +298,7 @@ if __name__ == '__main__':
 
     print("TVLQR\n")
     K, P = tvlqr(A, B, Q, R, Q)
-    forward_sim(env, K, P, X_ref, U_ref,Q,R,Q)
+    U_ref = forward_sim(env, K, P, X_ref, U_ref,Q,R,Q)
     print("\n\n")
     print("iLQR\n")
     X, U, K, P, iter =  iLQR(env, U,X_ref,U_ref,A,B,Q,R,Q)
