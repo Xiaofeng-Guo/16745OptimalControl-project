@@ -9,7 +9,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation as R
 import numpy as np
-import kinematics
 import time
 import pybullet as p
 import pybullet_data
@@ -17,7 +16,7 @@ def pid_control (env,target_states, init_action):
 
     action = init_action
     N = len(target_states)
-    N = 100
+    # N = 100
     P = 1
     D = 0.01
     I = 0.1
@@ -149,7 +148,6 @@ if __name__ == "__main__":
     actions = dataset['actions']
     observations = dataset['observations']
 
-    kine = kinematics.Kinematics()
     init_state = init_env(env)
     init_joint = init_state[0:7]
 
@@ -166,7 +164,7 @@ if __name__ == "__main__":
 
     init_action = np.zeros(9)
 
-    for i in range(0,100):
+    for i in range(0,400):
         env.render()
 
     N = len(templete_obs)
