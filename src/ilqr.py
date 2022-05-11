@@ -203,7 +203,7 @@ def forward_pass(env, X, U, Xref, Uref, K, d, delta_J, Q,R,Qf, max_linesearch_it
     return Xn, Un, Jn, alpha
 
 
-def iLQR(env, U, Xref, Uref, A,B,Q,R,Qf,atol = 1e-5, max_iters = 10):
+def iLQR(env, U, Xref, Uref, A,B,Q,R,Qf,atol = 1e-5, max_iters = 5):
 
 
     N = Xref.shape[0]
@@ -247,8 +247,8 @@ def forward_sim(env, K, P, Xref, Uref,Q,R,Qf):
     pid_k = np.concatenate((np.identity(9) * 1, np.identity(9) * 0.01), axis=1)
 
     for k in range(0, N - 1):
-        U[k] = Uref[k]  - K[k] @ (X[k] - Xref[k])
-        # U[k] = Uref[k] - pid_k @ (X[k] - Xref[k])
+        # U[k] = Uref[k]  - K[k] @ (X[k] - Xref[k])
+        U[k] = Uref[k] - pid_k @ (X[k] - Xref[k])
 
         # U[k] = clamp.(U[k], -u_bnd, u_bnd)
         observation, reward, done, info = env.step(U[k])
@@ -290,7 +290,7 @@ if __name__ == '__main__':
 
     q = [10] * 9 + [1] * 9
     Q = np.diag(q)
-    R = np.identity(9) * 0.1
+    R = np.identity(9) * 10
 
     U =copy.deepcopy(U_ref)
 
@@ -305,13 +305,7 @@ if __name__ == '__main__':
 
 
 
-
-
-
-
-
-
-    forward_sim(env, K, P, X_ref, U_ref,Q,R,Q)
+    forward_sim(env, K, P, X, U,Q,R,Q)
 
 # while True:
 # 	env.render()

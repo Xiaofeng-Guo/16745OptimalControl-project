@@ -72,10 +72,37 @@ def linearize(env, Xref, Uref):
 			fxdu = np.concatenate((env.sim.data.qpos[:9],env.sim.data.qvel[:9]))
 			B[step][:, i] = (fxdu - fxu) / delta
 		print(step)
-	np.save('A.npy', A)
-	np.save('B.npy', B)
+	# np.save('A.npy', A)
+	# np.save('B.npy', B)
 
 	return A, B
+
+
+def stage_cost(x, u, xref, uref,Q,R):
+    """
+    LQR cost at each knot point (depends on both x and u)
+    """
+
+    J = 0.0
+    J = 0.5 * (x - xref).transpose()@ Q @(x-xref)+0.5*(u).transpose()@ R @ (u)
+    return J
+
+
+
+def term_cost(x, xref,Qf):
+    J = 0.0
+    J = 0.5 * (x - xref).transpose()@ Qf@(x-xref)
+    return J
+
+def trajectory_cost(X, U, Xref, Uref, Q,R,Qf):
+# calculate the cost of a given trajectory
+    J = 0.0
+    n = Xref.shape[0]
+    for i in range(0,n-1):
+        J += stage_cost(X[i], U[i], Xref[i], Uref[i], Q,R)
+    J += term_cost(X[n-1], Xref[n-1], Qf)
+    return J
+
 
 
 def tvlqr(A,B,Q,R,Qf):
@@ -93,7 +120,7 @@ def tvlqr(A,B,Q,R,Qf):
 
 # def cost()
 
-def forward_sim(env,K,P,Xref,Uref):
+def forward_sim(env,K,P,Xref,Uref,Q,R,Qf):
 	# return cost
 	import matplotlib.pyplot as plt
 	cost = 0
@@ -108,11 +135,11 @@ def forward_sim(env,K,P,Xref,Uref):
 
 	for k in range(0,N-1):
 		U[k] = Uref[k] - K[k]@(X[k]-Xref[k])
-		# U[k] = Uref[k] - pid_k @ (X[k] - Xref[k])
+		U[k] = Uref[k] - pid_k @ (X[k] - Xref[k])
 
 		# U[k] = clamp.(U[k], -u_bnd, u_bnd)
 		observation, reward, done, info = env.step(U[k])
-		env.render()
+		# env.render()
 		X[k+1] = observation[:18]
 		# X[k+1]  = true_dynamics_rk4(model, X[k], U[k], dt)
 		cost += 0.5*(X[k]-Xref[k])@Q@((X[k]-Xref[k])) + 0.5*(U[k])@R@(U[k])
@@ -120,13 +147,18 @@ def forward_sim(env,K,P,Xref,Uref):
 
 	
 	X = np.asarray(X)
+	U = np.asarray(U)
 	Xref = np.asarray(Xref)
+	print(cost)
+	for joint in range(0,7):
+		plt.plot(X[:,joint],label='tracked tajectory')
+		plt.plot(Xref[:,joint],label='reference tajectory')
+		plt.legend()
+		plt.xlabel("time step")
+		plt.ylabel("joint "+str(joint))
+		plt.show()
 
-	plt.plot(X[:,0],label='est')
-	plt.plot(Xref[:,0],label='GT')
-	plt.legend()
-	plt.show()
-
+	cost = trajectory_cost(X,U,Xref,Uref,Q,R,Qf)
 	print(cost)
 	return cost
 
@@ -134,10 +166,10 @@ def forward_sim(env,K,P,Xref,Uref):
 if __name__ == '__main__':
 	env = gym.make('kitchen-complete-v0')
 	env.reset()
-	A = np.load('A.npy')
-	B = np.load('B.npy')
-	U_ref = np.load('data/trial3/Uref.npy')[:120]
-	X_ref = np.load('data/trial3/obs.npy')[:120]
+	# A = np.load('A.npy')
+	# B = np.load('B.npy')
+	U_ref = np.load('data/trial3/Uref.npy')[:160]
+	X_ref = np.load('data/trial3/obs.npy')[:160]
 
 	X_ref[20:29, 7:9] = 0.04
 	X_ref[29:45, 7:9] = 0.002
@@ -152,11 +184,11 @@ if __name__ == '__main__':
 	Q = np.diag(q)
 	R = np.identity(9)*10
 
-	# A,B = linearize(env,X_ref,U_ref)
+	A,B = linearize(env,X_ref,U_ref)
 	K,P = tvlqr(A,B,Q,R,Q)
 	# import ipdb;ipdb.set_trace()
 
-	forward_sim(env,K,P,X_ref,U_ref)
+	forward_sim(env,K,P,X_ref,U_ref,Q,R,Q)
 
 	# while True:
 	# 	env.render()
