@@ -71,7 +71,7 @@ def linearize(env, Xref, Uref):
 
 			fxdu = np.concatenate((env.sim.data.qpos[:9],env.sim.data.qvel[:9]))
 			B[step][:, i] = (fxdu - fxu) / delta
-		print(step)
+		# print(step)
 	# np.save('A.npy', A)
 	# np.save('B.npy', B)
 
@@ -135,32 +135,32 @@ def forward_sim(env,K,P,Xref,Uref,Q,R,Qf):
 
 	for k in range(0,N-1):
 		U[k] = Uref[k] - K[k]@(X[k]-Xref[k])
-		U[k] = Uref[k] - pid_k @ (X[k] - Xref[k])
+		# U[k] = Uref[k] - pid_k @ (X[k] - Xref[k])
 
 		# U[k] = clamp.(U[k], -u_bnd, u_bnd)
 		observation, reward, done, info = env.step(U[k])
 		# env.render()
 		X[k+1] = observation[:18]
 		# X[k+1]  = true_dynamics_rk4(model, X[k], U[k], dt)
-		cost += 0.5*(X[k]-Xref[k])@Q@((X[k]-Xref[k])) + 0.5*(U[k])@R@(U[k])
-	cost += 0.5*(X[N-1]-Xref[N-1])@Q@((X[N-1]-Xref[N-1]))
+		# cost += 0.5*(X[k]-Xref[k])@Q@((X[k]-Xref[k])) + 0.5*(U[k])@R@(U[k])
+	# cost += 0.5*(X[N-1]-Xref[N-1])@Qf@((X[N-1]-Xref[N-1]))
 
 	
 	X = np.asarray(X)
 	U = np.asarray(U)
 	Xref = np.asarray(Xref)
 	print(cost)
-	for joint in range(0,7):
-		plt.plot(X[:,joint],label='tracked tajectory')
-		plt.plot(Xref[:,joint],label='reference tajectory')
-		plt.legend()
-		plt.xlabel("time step")
-		plt.ylabel("joint "+str(joint))
-		plt.show()
+	# for joint in range(0,7):
+	# 	plt.plot(X[:,joint],label='tracked tajectory')
+	# 	plt.plot(Xref[:,joint],label='reference tajectory')
+	# 	plt.legend()
+	# 	plt.xlabel("time step")
+	# 	plt.ylabel("joint "+str(joint))
+	# 	plt.show()
 
 	cost = trajectory_cost(X,U,Xref,Uref,Q,R,Qf)
 	print(cost)
-	return cost
+	return X,cost
 
 
 if __name__ == '__main__':
@@ -182,14 +182,15 @@ if __name__ == '__main__':
 
 	q = [10]*9+[1]*9
 	Q = np.diag(q)
+	Qf = Q
 	R = np.identity(9)*10
 
 	A,B = linearize(env,X_ref,U_ref)
-	K,P = tvlqr(A,B,Q,R,Q)
+	K,P = tvlqr(A,B,Q,R,Qf)
 	# import ipdb;ipdb.set_trace()
 
-	forward_sim(env,K,P,X_ref,U_ref,Q,R,Q)
-
+	tvlqr_X,cost = forward_sim(env,K,P,X_ref,U_ref,Q,R,Qf)
+	np.save('data/trial3/tvlqr/x.npy',tvlqr_X)
 	# while True:
 	# 	env.render()
 	# 	env.sim.data.qpos[:self.n_jnt] = reset_pose[:self.n_jnt].copy()

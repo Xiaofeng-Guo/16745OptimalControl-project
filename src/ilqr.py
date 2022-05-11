@@ -203,7 +203,7 @@ def forward_pass(env, X, U, Xref, Uref, K, d, delta_J, Q,R,Qf, max_linesearch_it
     return Xn, Un, Jn, alpha
 
 
-def iLQR(env, U, Xref, Uref, A,B,Q,R,Qf,atol = 1e-5, max_iters = 5):
+def iLQR(env, U, Xref, Uref, A,B,Q,R,Qf,atol = 1e-5, max_iters = 1):
 
 
     N = Xref.shape[0]
@@ -247,16 +247,16 @@ def forward_sim(env, K, P, Xref, Uref,Q,R,Qf):
     pid_k = np.concatenate((np.identity(9) * 1, np.identity(9) * 0.01), axis=1)
 
     for k in range(0, N - 1):
-        # U[k] = Uref[k]  - K[k] @ (X[k] - Xref[k])
-        U[k] = Uref[k] - pid_k @ (X[k] - Xref[k])
+        U[k] = Uref[k]  - K[k] @ (X[k] - Xref[k])
+        # U[k] = Uref[k] - pid_k @ (X[k] - Xref[k])
 
         # U[k] = clamp.(U[k], -u_bnd, u_bnd)
         observation, reward, done, info = env.step(U[k])
         # env.render()
         X[k + 1] = observation[:18]
         # X[k+1]  = true_dynamics_rk4(model, X[k], U[k], dt)
-        cost += 0.5 * (X[k] - Xref[k]) @ Q @ ((X[k] - Xref[k])) + 0.5 * (U[k]) @ R @ (U[k])
-    cost += 0.5 * (X[N - 1] - Xref[N - 1]) @ Q @ ((X[N - 1] - Xref[N - 1]))
+        # cost += 0.5 * (X[k] - Xref[k]) @ Q @ ((X[k] - Xref[k])) + 0.5 * (U[k]) @ R @ (U[k])
+    # cost += 0.5 * (X[N - 1] - Xref[N - 1]) @ Q @ ((X[N - 1] - Xref[N - 1]))
 
     X = np.asarray(X)
     Xref = np.asarray(Xref)
@@ -281,10 +281,10 @@ if __name__ == '__main__':
 
     X_ref[20:29, 7:9] = 0.04
     X_ref[29:45, 7:9] = 0.002
-    X_ref[45:50, 7:9] = 0.04
-    X_ref[55:75, 7:9] = 0.002
+    X_ref[45:60, 7:9] = 0.04
+    X_ref[65:75, 7:9] = 0.002
     U_ref[29:45, 7:9] = -1
-    U_ref[55:75, 7:9] = -1
+    U_ref[65:75, 7:9] = -1
 
     # import ipdb;ipdb.set_trace()
 
@@ -303,7 +303,8 @@ if __name__ == '__main__':
     print("iLQR\n")
     X, U, K, P, iter =  iLQR(env, U,X_ref,U_ref,A,B,Q,R,Q)
 
-
+    np.save('data/trial3/ilqr/u.npy',U)
+    np.save('data/trial3/ilqr/x.npy', X)
 
     forward_sim(env, K, P, X, U,Q,R,Q)
 
